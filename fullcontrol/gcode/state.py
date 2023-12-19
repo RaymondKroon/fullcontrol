@@ -7,6 +7,7 @@ from fullcontrol.gcode.printer import Printer
 from fullcontrol.gcode.extrusion_classes import ExtrusionGeometry, Extruder
 from fullcontrol.gcode.controls import GcodeControls
 from fullcontrol.common import first_point
+from fullcontrol.visualize.bounding_box import BoundingBox
 
 
 class State(BaseModel):
@@ -24,10 +25,21 @@ class State(BaseModel):
     point: Optional[Point] = Point()
     i: Optional[int] = 0
     gcode: Optional[list] = []
+    print_area: Optional[BoundingBox] = None
 
     def __init__(self, steps: list, gcode_controls: GcodeControls):
         super().__init__()
         # initialize state based on the named-printer default initialization_data and initialization_data over-rides passed by designer in gcode_controls
+
+        if gcode_controls.initialization_data.get('print_area') is None:
+            self.print_area = BoundingBox()
+            points = [step for step in steps if isinstance(step, Point)]
+            starting_z = points[0].z
+            first_layer = [step for step in steps if isinstance(step, Point) and step.z - starting_z < 1]
+            self.print_area.calc_bounds(first_layer)
+            gcode_controls.initialization_data['print_area'] = self.print_area
+        else:
+            self.print_area = gcode_controls.initialization_data['print_area']
 
         initialization_data = import_module(f'fullcontrol.gcode.printer_library.singletool.{gcode_controls.printer_name}').set_up(
             gcode_controls.initialization_data)
